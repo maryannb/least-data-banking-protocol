@@ -24,10 +24,15 @@ Unlike traditional banking APIs that return scalar values (e.g., "$1,200.50"), L
 This diagram illustrates the "Zero-Knowledge" handshake between the User, the Finance App, and the Bank API.
 
 sequenceDiagram
+
     autonumber
+
     participant U as User
+    
     participant A as Finance App (Stripe)
+    
     participant B as Bank API Gateway
+    
     participant C as Bank Core Ledger
 
     Note over U, B: Phase 1: Scoped Linking
