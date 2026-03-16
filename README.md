@@ -1,13 +1,13 @@
 # mbelarmino-ldbp
-M. Belarmino Least-Data Banking Protocol (LDBP)
+# Least-Data Banking Protocol (LDBP)
 
-**1. Executive Summary**
+## Executive Summary
 
-The Least Data Banking Protocol (LDBP) is a privacy-first API framework designed to replace legacy "screen-scraping" and over-permissioned data sharing. In the current fintech landscape, apps like Stripe or Venmo often gain access to a user’s entire financial history just to verify a single transaction.
+The ***Least Data Banking Protocol (LDBP)*** is a privacy-first API framework designed to replace legacy "screen-scraping" and over-permissioned data sharing. In the current fintech landscape, apps like Stripe or Venmo often gain access to a user’s entire financial history just to verify a single transaction.
 
 LDBP shifts the paradigm from Data Extraction (sharing raw balances and history) to Insight Verification (sharing only the minimum data required for a specific outcome).
 
-**2. Core Architecture**
+## Core Architecture
 
 Unlike traditional banking APIs that return scalar values (e.g., "$1,200.50"), LDBP utilizes a Boolean Handshake. The finance app asks a question ("Is there enough for this $50 purchase?"), and the bank provides a cryptographically signed "Yes/No" response.
 
@@ -19,7 +19,7 @@ Unlike traditional banking APIs that return scalar values (e.g., "$1,200.50"), L
 
 ***Velocity Caps***: Built-in rate limiting to prevent "binary search" attacks on user wealth profiling.
 
-**3. System Flow**
+## System Flow
 
 This diagram illustrates the "Zero-Knowledge" handshake between the User, the Finance App, and the Bank API.
 
@@ -49,28 +49,29 @@ sequenceDiagram
     B-->>A: 201 Created (Transfer Complete)
     B->>U: Push Notification: "$50 sent to Stripe"
 
-**4. API Specification & Compliance**
+## API Specification & Compliance
 
 ***Technical Spec***: See openapi.yaml for the full endpoint definitions.
 
 ***Acceptance Criteria***: See features/api_compliance.feature for the Gherkin-style test suite covering privacy and security edge cases.
 
-**How to use this repository**
+## How to Use this Repository
 
 This repository serves as a Product Design Dossier. 
 
 It is intended for:
-* Engineering Leaders: To review the API contract and data isolation strategy.
-* Risk & Compliance Officers: To evaluate the data minimization and fraud mitigation logic.
-* Product Leaders: To understand the strategic shift toward privacy-as-a-feature.
+* ***Engineering Leaders***: To review the API contract and data isolation strategy.
+* ***Risk & Compliance Officers***: To evaluate the data minimization and fraud mitigation logic.
+* ***Product Leaders***: To understand the strategic shift toward privacy-as-a-feature.
 
-**License & Intellectual Property**
+## License & Intellectual Property
 
 © 2026 Mary Ann Belarmino. All rights reserved.
 
-The Least-Data Banking Protocol (LDBP) framework, including its OpenAPI specifications, architectural logic, and documentation, is licensed under the Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International (CC BY-NC-ND 4.0).
+The **Least-Data Banking Protocol (LDBP) framework**, including its OpenAPI specifications, architectural logic, and documentation, is licensed under the Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International (CC BY-NC-ND 4.0).
 
-***🔑 Usage & Adoption***
+**🔑 Usage & Adoption**
+
 I am highly committed to the widespread adoption of LDBP across both commercial and non-commercial sectors. The restrictive elements of this license are intended to preserve the integrity of the standard during its foundational phase.
 
 ***Attribution:***
@@ -86,8 +87,11 @@ To ensure interoperability, I ask that modifications be discussed via the "Propo
 I welcome collaboration and am open to granting commercial usage rights and derivative permissions. For formal consent, strategic advisory, or implementation support, please reach out.
 
 **Contact:**
+
 Mary Ann Belarmino
+
 Email: maryann.nazario@gmail.com
+
 LinkedIn: https://www.linkedin.com/in/maryann-belarmino/ 
 
 
