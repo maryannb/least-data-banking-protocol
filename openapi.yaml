@@ -1,0 +1,91 @@
+openapi: 3.0.3
+info:
+  title: Least Data Banking Protocol (LDBP) - Enterprise Suite
+  version: 1.4.0
+  description: >-
+    A Net-New framework for Intent-Based Banking. 
+    Focuses on Boolean Verification over Raw Data Extraction.
+  contact:
+    name: Mary Ann Belarmino
+    url: https://maryann-belarmino.com
+
+components:
+  securitySchemes:
+    mTLS: { type: mutualTLS }
+    BearerAuth: { type: http, scheme: bearer }
+  parameters:
+    IdempotencyKey:
+      name: X-Idempotency-Key
+      in: header
+      required: true
+      schema: { type: string }
+    BillingID:
+      name: X-Client-Billing-ID
+      in: header
+      required: true
+      schema: { type: string }
+
+paths:
+  # --- PHASE 1: IDENTITY ---
+  /auth/token/exchange:
+    post:
+      summary: "Issue Scoped JWT"
+      responses:
+        '200': { description: "Token Issued" }
+
+  # --- PHASE 2: GOVERNANCE & VERIFY (NET-NEW) ---
+  /balance/verify:
+    post:
+      summary: "[NET-NEW] Boolean Liquidity Check"
+      description: "Returns true/false based on intent. No raw balance shared."
+      parameters: [$ref: '#/components/parameters/BillingID']
+      requestBody:
+        content:
+          application/json:
+            schema:
+              required: [amount, intent_id]
+              properties:
+                amount: { type: number }
+                intent_id: { type: string }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { properties: { is_enough: { type: boolean } } }
+
+  /governance/permission-budget:
+    get:
+      summary: "[NET-NEW] Check Remaining Spend Limit"
+      responses:
+        '200': { description: "Returns remaining authorized budget for the period." }
+
+  # --- PHASE 3: EXECUTION & BATCH ---
+  /transfer/execute:
+    post:
+      summary: "Atomic Settlement"
+      parameters: [$ref: '#/components/parameters/IdempotencyKey']
+      responses:
+        '201': { description: "Success" }
+
+  /batch/transfers:
+    post:
+      summary: "[NET-NEW] Bulk Intent Settlement"
+      description: "Settles multiple pre-verified booleans in one efficient call."
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                transactions:
+                  type: array
+                  items: { properties: { intent_id: { type: string }, amount: { type: number } } }
+      responses:
+        '202': { description: "Batch Accepted" }
+
+  # --- PHASE 4: MONETIZATION ---
+  /billing/metering:
+    get:
+      summary: "[NET-NEW] Real-time Fee Attribution"
+      parameters: [$ref: '#/components/parameters/BillingID']
+      responses:
+        '200': { description: "Current accrued verification and execution fees." }
