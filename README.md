@@ -1,3 +1,5 @@
+![License: CC BY-NC-ND 4.0](https://img.shields.io/badge/License-CC%20BY--NC--ND%204.0-lightgrey.svg)
+
 # mbelarmino-ldbp
 # Least-Data Banking Protocol (LDBP)
 
@@ -69,7 +71,7 @@ It is intended for:
 * ***Risk & Compliance Officers***: To evaluate the data minimization and fraud mitigation logic.
 * ***Product Leaders***: To understand the strategic shift toward privacy-as-a-feature.
 
-## License & Intellectual Property
+## ⚖️ License & Intellectual Property & Commercial Use
 
 © 2026 Mary Ann Belarmino. All rights reserved.
 
