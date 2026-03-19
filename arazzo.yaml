@@ -1,0 +1,25 @@
+arazzo: 1.0.0
+info:
+  title: Least-Data Balance Check
+sourceDescriptions:
+  - name: banking-api
+    url: ./openapi.yaml
+    type: openapi
+workflows:
+  - workflowId: verify-funds
+    inputs:
+      type: object
+      properties:
+        requiredAmount: { type: number }
+    steps:
+      - stepId: getAccount
+        operationId: listAccounts
+        successCriteria:
+          - condition: $statusCode == 200
+      - stepId: checkSufficientFunds
+        operationId: getBalanceStatus
+        parameters:
+          - name: accountId
+            value: $steps.getAccount.outputs.id
+          - name: threshold
+            value: $inputs.requiredAmount
