@@ -1,91 +1,1138 @@
 openapi: 3.0.3
+
 info:
   title: Least Data Banking Protocol (LDBP) - Enterprise Suite
-  version: 1.4.0
+  version: 2.0.0
   description: >-
-    A Net-New framework for Intent-Based Banking. 
-    Focuses on Boolean Verification over Raw Data Extraction.
+    A Privacy-by-Design framework for Intent-Based Banking.
+    Replaces raw data extraction with Boolean verification (the "is_enough" check).
+
+    DESIGN PRINCIPLES:
+    - Least Data: No raw balances, no transaction history, no account metadata
+      are ever returned to third-party apps.
+    - Composite Atomic Verification: The POST /balance/verify endpoint performs
+      balance verification AND fraud evaluation as a single atomic operation
+      within the bank's Policy Enforcement Point (PEP). These MUST NOT be
+      implemented as separate sequential calls, as doing so reintroduces a
+      race condition window between the two checks.
+    - Single Boolean Response: The /balance/verify response returns one Boolean
+      (is_enough). A False result is deliberately opaque — it may reflect
+      insufficient funds, a fraud flag, a revoked token, a rate limit hit, or
+      a weekly cap exceeded. Reason codes are strictly internal to the bank
+      and MUST NOT be surfaced in any API response to third parties.
+    - Notification Sovereignty: When a verification is blocked for any reason,
+      the bank notifies the authenticated user directly via the
+      verification.blocked webhook. The app receives only False.
+    - Intent-ID Lifecycle: Each Intent-ID is single-use and session-bound.
+      A blocked verification invalidates the Intent-ID immediately. A new
+      Intent-ID must be generated for any subsequent attempt. Consumed or
+      invalidated Intent-IDs MUST NOT be reused.
+
+    ADOPTION PHASES:
+    - Phase 1 (Clean Pipe): /auth/token/exchange, /auth/token/revoke,
+      /balance/verify, /transfer/execute. Achieves Boolean verification
+      and scoped account isolation. Target LOE: 6-9 months.
+    - Phase 2 (Risk Capping & Governance): /governance/permission-budget,
+      /batch/transfers, /billing/metering, /webhooks. Introduces
+      value-bound and time-bound Virtual Allowances, bulk settlement,
+      and monetization infrastructure.
+
+    IMPLEMENTATION-DEFINED BEHAVIORS:
+    The following are deliberately left to the implementing institution:
+    - Fraud scoring model and internal flag thresholds
+    - Consumer notification format and delivery channel for
+      verification.blocked events
+    - Attribute verification method (internal comparison logic vs.
+      Zero-Knowledge Proofs; ZKPs are recommended for Phase 2 or
+      high-value environments)
+    - Weekly/monthly cap values for Virtual Allowances (Phase 2)
+
   contact:
     name: Mary Ann Belarmino
-    url: https://maryann-belarmino.com
+    url: https://belarminoadvisory.com
+  license:
+    name: Creative Commons Attribution 4.0 (CC BY 4.0)
+    url: https://creativecommons.org/licenses/by/4.0/
+
+# -----------------------------------------------------------------------
+# SECURITY
+# -----------------------------------------------------------------------
+security:
+  - mTLS: []
+  - BearerAuth: []
 
 components:
+
+  # -----------------------------------------------------------------------
+  # SECURITY SCHEMES
+  # -----------------------------------------------------------------------
   securitySchemes:
-    mTLS: { type: mutualTLS }
-    BearerAuth: { type: http, scheme: bearer }
+
+    mTLS:
+      type: http
+      scheme: bearer
+      bearerFormat: mTLS
+      description: >-
+        Mutual TLS for bank-to-bank and high-assurance fintech connections.
+        Required for /transfer/execute and /batch/transfers.
+        Enforce mTLS at the infrastructure/gateway layer alongside this scheme.
+        Full mutualTLS security scheme type is available in OpenAPI 3.1.
+
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: >-
+        Standard Bearer JWT for app-layer requests. Must be accompanied
+        by a valid ScopedAccountToken in the request body or header
+        for all /balance and /transfer endpoints.
+
+    ScopedAccountToken:
+      type: apiKey
+      in: header
+      name: X-Scoped-Account-Token
+      description: >-
+        A Persistent Account Token (Alias) issued by /auth/token/exchange.
+        Mathematically restricted to a single user-selected account at a
+        single bank. Unique per Finance App — if the app is compromised,
+        the alias is useless for accessing any other bank or app.
+        This is NOT a standard OAuth bearer token. It encodes account-level
+        scope enforced at the bank's Policy Enforcement Point (PEP).
+        Invalidated instantly via /auth/token/revoke.
+
+  # -----------------------------------------------------------------------
+  # REUSABLE PARAMETERS
+  # -----------------------------------------------------------------------
   parameters:
+
     IdempotencyKey:
       name: X-Idempotency-Key
       in: header
       required: true
-      schema: { type: string }
+      description: >-
+        Unique key cached by the API Gateway for 24 hours.
+        If a network failure causes an app to retry a successful transaction,
+        the bank MUST recognize this key and return the original response
+        without re-executing the operation. Prevents double-charging on
+        network retries.
+      schema:
+        type: string
+        format: uuid
+        example: "550e8400-e29b-41d4-a716-446655440000"
+
     BillingID:
       name: X-Client-Billing-ID
       in: header
       required: true
-      schema: { type: string }
+      description: >-
+        Identifies the Finance App for basis-point fee attribution.
+        Used by /billing/metering to calculate per-verification and
+        per-execution royalties owed to the bank.
+      schema:
+        type: string
+        example: "client_stripe_prod_001"
 
+    ScopedTokenHeader:
+      name: X-Scoped-Account-Token
+      in: header
+      required: true
+      description: >-
+        The Alias token issued by /auth/token/exchange. Scoped to a single
+        user-selected account. The bank's PEP rejects any request targeting
+        an account not encoded in this token.
+      schema:
+        type: string
+
+  # -----------------------------------------------------------------------
+  # REUSABLE SCHEMAS
+  # -----------------------------------------------------------------------
+  schemas:
+
+    IntentID:
+      type: string
+      format: uuid
+      description: >-
+        A session-based, single-use identifier generated by the Finance App
+        for each transaction. Links the /balance/verify check directly to
+        the subsequent /transfer/execute call, creating a verifiable
+        authorization chain.
+        LIFECYCLE: Single-use. Expires when the transaction completes OR
+        when the verification is blocked (False response). A blocked
+        verification invalidates the Intent-ID immediately — a new
+        Intent-ID MUST be generated for any subsequent attempt.
+        Consumed or invalidated Intent-IDs MUST NOT be reused.
+      example: "int_9f4a2c1e-8b3d-4e5f-a6c7-d8e9f0a1b2c3"
+
+    BooleanVerificationResponse:
+      type: object
+      required:
+        - is_enough
+        - intent_id
+        - evaluated_at
+      properties:
+        is_enough:
+          type: boolean
+          description: >-
+            The composite result of balance verification AND fraud evaluation,
+            performed atomically within the bank's Policy Enforcement Point.
+            TRUE: Funds are sufficient AND the transaction passed fraud
+            evaluation AND the token is valid AND no weekly cap is exceeded.
+            FALSE: One or more of the following internal conditions was met —
+            insufficient funds, fraud flag triggered, revoked token, rate
+            limit exceeded, or weekly cap hit. The specific reason is
+            NEVER disclosed in this response. All False responses are
+            deliberately indistinguishable to the calling app.
+            If False due to a fraud flag, the bank simultaneously triggers
+            a verification.blocked webhook notification to the authenticated
+            user. The app receives only False.
+        intent_id:
+          $ref: '#/components/schemas/IntentID'
+        evaluated_at:
+          type: string
+          format: date-time
+          description: "ISO 8601 timestamp of the atomic evaluation."
+
+    ErrorResponse:
+      type: object
+      required:
+        - error_code
+        - message
+        - request_id
+      properties:
+        error_code:
+          type: string
+          description: "Machine-readable error code."
+          enum:
+            - INVALID_TOKEN
+            - TOKEN_EXPIRED
+            - TOKEN_REVOKED
+            - INTENT_ID_CONSUMED
+            - INTENT_ID_INVALID
+            - RATE_LIMIT_EXCEEDED
+            - MALFORMED_REQUEST
+            - MISSING_REQUIRED_FIELD
+            - ACCOUNT_SCOPE_MISMATCH
+            - IDEMPOTENCY_CONFLICT
+        message:
+          type: string
+          description: >-
+            Human-readable error description for developer debugging.
+            IMPORTANT: This field MUST NOT disclose internal fraud flags,
+            balance amounts, account details, or reason for False responses
+            on /balance/verify. Error messages are for integration errors
+            only, not verification outcomes.
+        request_id:
+          type: string
+          format: uuid
+          description: "Unique request identifier for bank-side audit logging."
+
+    ScopedTokenResponse:
+      type: object
+      required:
+        - scoped_account_token
+        - alias_id
+        - account_type
+        - expires_at
+      properties:
+        scoped_account_token:
+          type: string
+          description: >-
+            The Persistent Account Token (Alias) scoped to the
+            user-selected account. Unique to this Finance App.
+            Use this token in X-Scoped-Account-Token for all
+            subsequent /balance and /transfer requests.
+        alias_id:
+          type: string
+          description: >-
+            An opaque identifier for this app-account pairing
+            (e.g., alias_8822_stripe). The bank uses this internally
+            instead of the raw 12-digit DDA number. Safe to log —
+            it reveals nothing about the underlying account.
+        account_type:
+          type: string
+          enum: [checking, savings]
+          description: "The account type the user selected. No account number is returned."
+        expires_at:
+          type: string
+          format: date-time
+          description: "Token expiry. Cryptographic hard expiry — not renewable without user re-consent."
+        scope:
+          type: string
+          description: "Machine-readable scope string encoding account-level restrictions."
+          example: "balance:verify transfer:execute account:checking"
+
+    WebhookVerificationBlocked:
+      type: object
+      required:
+        - event
+        - timestamp
+        - app_alias
+        - intent_id
+        - reason
+      description: >-
+        Payload delivered by the bank to the authenticated user when a
+        verification request is blocked for any internal reason.
+        Delivered via bank's consumer notification channel (push/SMS/email)
+        to the authenticated user ONLY.
+        CRITICAL: This payload MUST NOT be forwarded to the Finance App.
+        The Finance App has already received False on /balance/verify.
+        This notification exists solely for user transparency.
+        Displayed in the user's Kill Switch portal as human-readable status.
+      properties:
+        event:
+          type: string
+          enum: [verification.blocked]
+        timestamp:
+          type: string
+          format: date-time
+          description: "ISO 8601 timestamp of the block event."
+        app_alias:
+          type: string
+          description: >-
+            The opaque alias_id of the Finance App that initiated the
+            blocked request. Human-readable name resolved by the bank
+            for display (e.g., 'Stripe', 'Venmo').
+        intent_id:
+          $ref: '#/components/schemas/IntentID'
+        reason:
+          type: string
+          description: >-
+            Human-readable reason for display in the Kill Switch portal.
+            MUST use only the approved status taxonomy.
+          enum:
+            - declined_insufficient_funds
+            - declined_fraud_review
+            - declined_rate_limit
+            - declined_revoked
+            - declined_cap_exceeded
+        portal_url:
+          type: string
+          format: uri
+          description: "Deep link to the Kill Switch portal entry for this event."
+
+# -----------------------------------------------------------------------
+# PATHS
+# -----------------------------------------------------------------------
 paths:
-  # --- PHASE 1: IDENTITY ---
+
+  # =======================================================================
+  # PHASE 1: IDENTITY & SCOPING
+  # =======================================================================
+
   /auth/token/exchange:
     post:
-      summary: "Issue Scoped JWT"
-      responses:
-        '200': { description: "Token Issued" }
+      tags: [Phase 1 — Identity]
+      summary: "Issue Scoped Account Token"
+      description: >-
+        The user authenticates with their bank and selects ONE specific
+        account (e.g., Checking). The bank issues a Persistent Account Token
+        (Alias) mathematically restricted to that account ID alone.
 
-  # --- PHASE 2: GOVERNANCE & VERIFY (NET-NEW) ---
-  /balance/verify:
-    post:
-      summary: "[NET-NEW] Boolean Liquidity Check"
-      description: "Returns true/false based on intent. No raw balance shared."
-      parameters: [$ref: '#/components/parameters/BillingID']
+        This is the most important endpoint in the protocol. It is where
+        user consent is captured and encoded cryptographically into the token.
+        The Finance App receives an alias_id — never the raw 12-digit DDA.
+
+        ACCOUNT SELECTION: The user (not the app) selects the account via
+        the bank's native UI. The app passes the user's selection; it cannot
+        enumerate or influence which accounts are available.
+
+        TOKEN SCOPE: The resulting token encodes account-level restrictions
+        enforced at the PEP. The bank's server rejects any request targeting
+        an account not encoded in this token — this is an architectural
+        hard wall, not a policy.
+      security:
+        - BearerAuth: []
       requestBody:
+        required: true
         content:
           application/json:
             schema:
-              required: [amount, intent_id]
+              type: object
+              required:
+                - user_selected_account_id
+                - finance_app_id
+                - consent_scope
               properties:
-                amount: { type: number }
-                intent_id: { type: string }
+                user_selected_account_id:
+                  type: string
+                  description: >-
+                    The account ID selected by the user in the bank's
+                    account selector UI. The app passes this value through;
+                    it is validated against the authenticated user's
+                    actual account list server-side.
+                finance_app_id:
+                  type: string
+                  description: >-
+                    Registered identifier of the Finance App requesting
+                    the token. Used to generate the app-specific alias_id.
+                  example: "app_stripe_fin_001"
+                consent_scope:
+                  type: array
+                  items:
+                    type: string
+                    enum:
+                      - balance:verify
+                      - transfer:execute
+                      - governance:read
+                  description: >-
+                    The explicit scopes being requested. The user must
+                    approve each scope. The bank MUST NOT issue a token
+                    with scopes not explicitly listed here.
+                  example: ["balance:verify", "transfer:execute"]
       responses:
         '200':
+          description: "Scoped Account Token issued successfully."
           content:
             application/json:
-              schema: { properties: { is_enough: { type: boolean } } }
+              schema:
+                $ref: '#/components/schemas/ScopedTokenResponse'
+        '400':
+          description: "Malformed request or invalid account selection."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: "User authentication failed."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: "Finance App not registered or consent scope not permitted."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/token/revoke:
+    post:
+      tags: [Phase 1 — Identity]
+      summary: "Kill Switch — Revoke Scoped Account Token"
+      description: >-
+        Instantly invalidates a scoped_account_token, terminating the
+        Finance App's access to the user's account immediately.
+
+        This is the user-facing Kill Switch. A single call breaks the
+        app's access without requiring the user to contact the bank.
+
+        Upon revocation:
+        - All subsequent /balance/verify calls using this token return False
+          with error code TOKEN_REVOKED
+        - All subsequent /transfer/execute calls are rejected
+        - The revocation is logged in the user's Kill Switch portal
+        - Any pending Intent-IDs associated with this token are invalidated
+
+        The Finance App is NOT notified of the revocation reason.
+        It receives only rejection responses on subsequent calls.
+      security:
+        - BearerAuth: []
+        - ScopedAccountToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - scoped_account_token
+              properties:
+                scoped_account_token:
+                  type: string
+                  description: "The token to be immediately revoked."
+                reason:
+                  type: string
+                  description: >-
+                    Optional user-provided reason. Stored in Kill Switch
+                    portal audit log. Never shared with the Finance App.
+                  example: "I no longer use this app"
+      responses:
+        '200':
+          description: "Token revoked. App access terminated immediately."
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  revoked_at:
+                    type: string
+                    format: date-time
+                  alias_id:
+                    type: string
+                    description: "The alias_id of the revoked app connection."
+                  portal_url:
+                    type: string
+                    format: uri
+                    description: "Deep link to the Kill Switch portal revocation log entry."
+        '400':
+          description: "Malformed request."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: "User authentication failed."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: "Token not found or already revoked."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # =======================================================================
+  # PHASE 1 & 2: BALANCE VERIFICATION (THE "IS_ENOUGH" CHECK)
+  # =======================================================================
+
+  /balance/verify:
+    post:
+      tags: [Phase 1 — Verification]
+      summary: "Composite Boolean Verification (the 'is_enough' check)"
+      description: >-
+        The core LDBP endpoint. Performs balance verification AND fraud
+        evaluation as a single atomic operation within the bank's Policy
+        Enforcement Point (PEP).
+
+        WHAT THIS IS: The programmatic equivalent of an ATM's Just-in-Time
+        check. The ATM does not tell the merchant how much money the user
+        has left — it only says Yes to the amount requested. This endpoint
+        does the same thing for digital payments.
+
+        ATOMIC COMPOSITE OPERATION: Balance check and fraud evaluation MUST
+        be performed in a single locked database operation within the PEP.
+        Implementing banks MUST NOT separate these into sequential API calls.
+        Separating them reintroduces a race condition window between checks.
+
+        RESPONSE SEMANTICS: The single Boolean is_enough reflects the
+        combined result of ALL internal checks:
+        - Sufficient funds in the scoped account
+        - Transaction passes the bank's internal fraud evaluation
+        - Scoped Account Token is valid and not revoked
+        - Intent-ID is valid, unused, and not previously invalidated
+        - Weekly/monthly cap has not been exceeded (Phase 2)
+
+        FALSE RESPONSE OPACITY: A False result deliberately reveals nothing
+        about which check failed. All False responses are indistinguishable
+        to the calling app. Reason codes are strictly internal.
+
+        FRAUD FLAG BEHAVIOR: If False is returned due to an internal fraud
+        flag, the bank MUST simultaneously trigger a verification.blocked
+        webhook notification to the authenticated user. The app receives
+        only False. See the webhooks section for payload specification.
+
+        INTENT-ID INVALIDATION: A False response invalidates the Intent-ID.
+        The Finance App MUST generate a new Intent-ID for any retry.
+
+        RATE LIMITING: This endpoint is rate-limited to 5 calls per hour
+        per scoped_account_token. Exceeding this limit returns 429 and
+        triggers a verification.blocked notification to the user.
+
+        NO RAW DATA: This endpoint MUST NOT return balance amounts,
+        transaction history, account numbers, or any data beyond the
+        Boolean response and the echoed intent_id and timestamp.
+      security:
+        - BearerAuth: []
+        - ScopedAccountToken: []
+      parameters:
+        - $ref: '#/components/parameters/BillingID'
+        - $ref: '#/components/parameters/ScopedTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - amount
+                - intent_id
+                - currency
+              properties:
+                amount:
+                  type: number
+                  format: double
+                  minimum: 0.01
+                  description: >-
+                    The exact transaction amount being verified.
+                    The bank checks whether the scoped account holds
+                    at least this amount. No other amount information
+                    is ever returned.
+                  example: 50.00
+                currency:
+                  type: string
+                  pattern: '^[A-Z]{3}$'
+                  description: "ISO 4217 currency code."
+                  example: "USD"
+                intent_id:
+                  $ref: '#/components/schemas/IntentID'
+                merchant_category_code:
+                  type: string
+                  pattern: '^\d{4}$'
+                  description: >-
+                    Optional ISO 18245 Merchant Category Code.
+                    Used by the bank's internal fraud evaluation only.
+                    Never returned in the response.
+                  example: "5411"
+      responses:
+        '200':
+          description: >-
+            Verification evaluated. Check is_enough for the result.
+            Note: A 200 status means the evaluation completed successfully —
+            it does NOT mean the transaction is approved. Always check
+            the is_enough Boolean.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BooleanVerificationResponse'
+          headers:
+            X-RateLimit-Remaining:
+              schema:
+                type: integer
+              description: "Remaining verification calls in the current rate limit window."
+            X-RateLimit-Reset:
+              schema:
+                type: string
+                format: date-time
+              description: "ISO 8601 timestamp when the rate limit window resets."
+        '400':
+          description: "Malformed request, missing required fields, or invalid Intent-ID format."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: "Invalid or expired Scoped Account Token."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: >-
+            Token revoked or account scope mismatch. The token does not
+            have permission to verify against this account.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: >-
+            Intent-ID already consumed or previously invalidated.
+            Generate a new Intent-ID and retry.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: >-
+            Rate limit exceeded (5 calls/hour per scoped token).
+            A verification.blocked notification has been sent to the user.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          headers:
+            X-RateLimit-Reset:
+              schema:
+                type: string
+                format: date-time
+              description: "ISO 8601 timestamp when the rate limit window resets."
+
+  # =======================================================================
+  # PHASE 2: GOVERNANCE
+  # =======================================================================
 
   /governance/permission-budget:
     get:
-      summary: "[NET-NEW] Check Remaining Spend Limit"
-      responses:
-        '200': { description: "Returns remaining authorized budget for the period." }
+      tags: [Phase 2 — Governance]
+      summary: "Check Remaining Virtual Allowance (Phase 2)"
+      description: >-
+        Returns the remaining authorized spend budget for the current
+        period under the user's Virtual Allowance policy.
 
-  # --- PHASE 3: EXECUTION & BATCH ---
+        PHASE 2 FEATURE: This endpoint is part of the Risk Capping &
+        Governance phase. Phase 1 implementations do not need to support
+        this endpoint.
+
+        The weekly/monthly cap values are user-configured and
+        institution-implemented. LDBP specifies the mechanism, not
+        the limits. See Implementation-Defined Behaviors in the
+        API info description.
+
+        This endpoint returns threshold data only — no raw balance,
+        no transaction history. The remaining_budget reflects the
+        delta between the user's authorized period cap and the
+        cumulative amount already pulled by this Finance App in
+        the current period.
+      security:
+        - BearerAuth: []
+        - ScopedAccountToken: []
+      parameters:
+        - $ref: '#/components/parameters/BillingID'
+        - $ref: '#/components/parameters/ScopedTokenHeader'
+      responses:
+        '200':
+          description: "Remaining authorized budget for the current period."
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - remaining_budget
+                  - period_type
+                  - period_resets_at
+                  - currency
+                properties:
+                  remaining_budget:
+                    type: number
+                    format: double
+                    description: >-
+                      Remaining authorized spend in the current period.
+                      This is a threshold value, not a balance. It reflects
+                      the governance cap, not the account balance.
+                  period_type:
+                    type: string
+                    enum: [weekly, monthly]
+                  period_resets_at:
+                    type: string
+                    format: date-time
+                    description: "When the current allowance period resets."
+                  currency:
+                    type: string
+                    pattern: '^[A-Z]{3}$'
+                    example: "USD"
+        '400':
+          description: "Malformed request."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: "Invalid or expired token."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: "No Virtual Allowance policy configured for this token."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # =======================================================================
+  # PHASE 1: EXECUTION
+  # =======================================================================
+
   /transfer/execute:
     post:
-      summary: "Atomic Settlement"
-      parameters: [$ref: '#/components/parameters/IdempotencyKey']
-      responses:
-        '201': { description: "Success" }
+      tags: [Phase 1 — Execution]
+      summary: "Atomic Fund Transfer"
+      description: >-
+        Executes the fund transfer for a pre-verified intent. MUST only
+        be called after a successful True response from /balance/verify
+        using the same intent_id.
 
-  /batch/transfers:
-    post:
-      summary: "[NET-NEW] Bulk Intent Settlement"
-      description: "Settles multiple pre-verified booleans in one efficient call."
+        ATOMIC EXECUTION: The bank MUST implement this as an Atomic Wrapper
+        — a stored procedure that verifies the earmark and deducts funds in
+        a single database lock. This prevents race conditions where a user
+        might spend the same dollar twice through parallel API calls.
+
+        INTENT-ID CHAIN: The intent_id passed here MUST match the
+        intent_id from the corresponding True /balance/verify response.
+        The bank validates this chain before executing. A mismatch,
+        consumed ID, or False-verified intent_id MUST be rejected.
+
+        IDEMPOTENCY: The X-Idempotency-Key MUST be cached for 24 hours.
+        If a network failure causes a retry of a successful transfer,
+        the bank MUST return the original 201 response without
+        re-executing the deduction. This prevents double-charging.
+
+        REAL ACCOUNT NUMBER PROTECTION: The transfer is executed against
+        the internal account associated with the alias_id. The raw DDA
+        number is NEVER transmitted in this request or response.
+      security:
+        - mTLS: []
+        - ScopedAccountToken: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/BillingID'
+        - $ref: '#/components/parameters/ScopedTokenHeader'
       requestBody:
+        required: true
         content:
           application/json:
             schema:
+              type: object
+              required:
+                - intent_id
+                - amount
+                - currency
+              properties:
+                intent_id:
+                  $ref: '#/components/schemas/IntentID'
+                amount:
+                  type: number
+                  format: double
+                  minimum: 0.01
+                  description: >-
+                    MUST match the amount passed to /balance/verify for
+                    this intent_id. The bank validates this match.
+                    A mismatch is rejected with 409.
+                  example: 50.00
+                currency:
+                  type: string
+                  pattern: '^[A-Z]{3}$'
+                  example: "USD"
+      responses:
+        '201':
+          description: "Transfer executed successfully."
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - transfer_id
+                  - intent_id
+                  - amount
+                  - currency
+                  - executed_at
+                properties:
+                  transfer_id:
+                    type: string
+                    format: uuid
+                    description: "Bank-generated unique transfer identifier for audit."
+                  intent_id:
+                    $ref: '#/components/schemas/IntentID'
+                  amount:
+                    type: number
+                    format: double
+                  currency:
+                    type: string
+                    pattern: '^[A-Z]{3}$'
+                  executed_at:
+                    type: string
+                    format: date-time
+        '400':
+          description: "Malformed request or missing required fields."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: "Invalid or expired Scoped Account Token."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: >-
+            Intent-ID mismatch, amount mismatch, intent not pre-verified,
+            or intent_id already consumed. Verify the intent chain and
+            generate a new Intent-ID if needed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: >-
+            Transfer rejected. Funds no longer available since verification
+            (possible race condition on non-RTP/FedNow networks). The
+            Finance App must re-verify with a new Intent-ID.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # =======================================================================
+  # PHASE 2: BATCH EXECUTION
+  # =======================================================================
+
+  /batch/transfers:
+    post:
+      tags: [Phase 2 — Execution]
+      summary: "Bulk Intent Settlement (Phase 2)"
+      description: >-
+        Settles multiple pre-verified intents in a single efficient call.
+        Each transaction in the batch MUST have a corresponding True
+        response from /balance/verify using its intent_id.
+
+        PHASE 2 FEATURE: Designed for agentic and subscription use cases
+        where multiple intents are pre-verified and settled in batch.
+
+        AGENTIC USE: In Multi-Agent System (MAS) deployments, each agent
+        submits its pre-verified intent_id. The batch endpoint settles
+        them atomically without granting any agent visibility into other
+        agents' intents or the underlying account state.
+
+        PARTIAL FAILURE: If any intent in the batch fails validation,
+        the entire batch is rejected (all-or-nothing). The response
+        identifies the failing intent_id(s).
+
+        IDEMPOTENCY: The X-Idempotency-Key applies to the entire batch.
+        A retry with the same key returns the original response without
+        re-executing any transfers.
+      security:
+        - mTLS: []
+        - ScopedAccountToken: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/BillingID'
+        - $ref: '#/components/parameters/ScopedTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - transactions
               properties:
                 transactions:
                   type: array
-                  items: { properties: { intent_id: { type: string }, amount: { type: number } } }
+                  minItems: 2
+                  maxItems: 100
+                  description: >-
+                    Array of pre-verified intents to settle. Each
+                    intent_id must have a corresponding True response
+                    from /balance/verify.
+                  items:
+                    type: object
+                    required:
+                      - intent_id
+                      - amount
+                      - currency
+                    properties:
+                      intent_id:
+                        $ref: '#/components/schemas/IntentID'
+                      amount:
+                        type: number
+                        format: double
+                        minimum: 0.01
+                      currency:
+                        type: string
+                        pattern: '^[A-Z]{3}$'
       responses:
-        '202': { description: "Batch Accepted" }
+        '202':
+          description: "Batch accepted and queued for atomic settlement."
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - batch_id
+                  - accepted_count
+                  - queued_at
+                properties:
+                  batch_id:
+                    type: string
+                    format: uuid
+                  accepted_count:
+                    type: integer
+                  queued_at:
+                    type: string
+                    format: date-time
+        '400':
+          description: "Malformed request or batch size violation."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: >-
+            One or more intent_ids are invalid, consumed, or not
+            pre-verified. The entire batch is rejected. The failing
+            intent_ids are listed in the error response.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ErrorResponse'
+                  - type: object
+                    properties:
+                      failed_intent_ids:
+                        type: array
+                        items:
+                          type: string
+                        description: "List of intent_ids that failed validation."
 
-  # --- PHASE 4: MONETIZATION ---
+  # =======================================================================
+  # PHASE 2: MONETIZATION
+  # =======================================================================
+
   /billing/metering:
     get:
-      summary: "[NET-NEW] Real-time Fee Attribution"
-      parameters: [$ref: '#/components/parameters/BillingID']
+      tags: [Phase 2 — Monetization]
+      summary: "Real-time Fee Attribution"
+      description: >-
+        Returns the current accrued verification and execution fees
+        for the identified Finance App in the current billing period.
+
+        BANK MONETIZATION: Under LDBP, the bank charges basis-point (bps)
+        royalties for every verified transaction, replacing the current
+        model where the bank gives transaction data away for free to
+        aggregators. This endpoint provides the Finance App visibility
+        into its accruing fee obligations.
+
+        FEE STRUCTURE: Fee rates are institution-defined. LDBP specifies
+        the metering mechanism, not the rates. Typical structure:
+        - Per-verification fee (each /balance/verify call)
+        - Per-execution fee (each /transfer/execute call)
+        - Batch settlement fee (per /batch/transfers call)
+
+        DATA RETURNED: This endpoint returns fee attribution data only.
+        No account balances, transaction amounts, or user financial
+        data are returned.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/BillingID'
       responses:
-        '200': { description: "Current accrued verification and execution fees." }
+        '200':
+          description: "Current accrued fees for the billing period."
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - client_billing_id
+                  - period_start
+                  - period_end
+                  - currency
+                  - fees
+                properties:
+                  client_billing_id:
+                    type: string
+                  period_start:
+                    type: string
+                    format: date-time
+                  period_end:
+                    type: string
+                    format: date-time
+                  currency:
+                    type: string
+                    pattern: '^[A-Z]{3}$'
+                  fees:
+                    type: object
+                    properties:
+                      verification_calls:
+                        type: integer
+                        description: "Total /balance/verify calls this period."
+                      execution_calls:
+                        type: integer
+                        description: "Total /transfer/execute calls this period."
+                      batch_calls:
+                        type: integer
+                        description: "Total /batch/transfers calls this period."
+                      accrued_total:
+                        type: number
+                        format: double
+                        description: "Total fees accrued in the billing period."
+                      basis_points_rate:
+                        type: number
+                        description: "Institution-defined bps rate applied."
+        '400':
+          description: "Missing or invalid X-Client-Billing-ID."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: "Authentication failed."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # =======================================================================
+  # PHASE 2: WEBHOOKS (BANK → USER NOTIFICATIONS)
+  # =======================================================================
+
+  /webhooks/verification.blocked:
+    post:
+      tags: [Phase 2 — Webhooks]
+      summary: "Fraud Block / Blocked Verification Notification (Bank → User)"
+      description: >-
+        Webhook delivered by the bank directly to the authenticated user
+        when a /balance/verify request returns False due to any internal
+        block condition (fraud flag, rate limit, revoked token, cap exceeded).
+
+        NOTIFICATION SOVEREIGNTY: This notification path is
+        bank → user ONLY. It MUST NOT be forwarded to or visible by
+        the Finance App. The Finance App has already received False on
+        /balance/verify. This webhook exists solely for user transparency
+        and is displayed in the Kill Switch portal.
+
+        TRIGGER CONDITIONS: The bank MUST send this webhook when
+        /balance/verify returns False due to:
+        - Internal fraud flag triggered
+        - Rate limit exceeded (5 calls/hour)
+        - Token revoked
+        - Weekly/monthly cap exceeded (Phase 2)
+        Note: False due to insufficient funds does NOT trigger this
+        webhook — insufficient funds is a normal payment outcome and
+        does not require a security notification.
+
+        DELIVERY: Delivered to the authenticated user's registered
+        notification channel (push notification, SMS, or email)
+        as configured by the bank. The portal_url field provides
+        a deep link to the Kill Switch portal entry.
+
+        IMPLEMENTATION NOTE: This is a bank-outbound webhook, not an
+        inbound endpoint for Finance Apps. It is documented here for
+        implementing banks to understand the required notification contract.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WebhookVerificationBlocked'
+      responses:
+        '200':
+          description: "Notification delivered successfully."
+        '400':
+          description: "Malformed webhook payload."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+# -----------------------------------------------------------------------
+# TAGS (for Swagger UI grouping)
+# -----------------------------------------------------------------------
+tags:
+  - name: "Phase 1 — Identity"
+    description: >-
+      Account scoping and token management. The foundation of LDBP.
+      Implements scoped OAuth 2.0 tokens and the Kill Switch.
+      Required for Phase 1 compliance.
+  - name: "Phase 1 — Verification"
+    description: >-
+      The 'is_enough' check. Composite atomic Boolean verification.
+      The core privacy-preserving innovation of LDBP.
+      Required for Phase 1 compliance.
+  - name: "Phase 1 — Execution"
+    description: >-
+      Atomic fund transfer against pre-verified intents.
+      Required for Phase 1 compliance.
+  - name: "Phase 2 — Governance"
+    description: >-
+      Virtual Allowance management and permission budgets.
+      Optional Phase 2 feature.
+  - name: "Phase 2 — Execution"
+    description: >-
+      Bulk intent settlement for agentic and subscription use cases.
+      Optional Phase 2 feature.
+  - name: "Phase 2 — Monetization"
+    description: >-
+      Real-time fee attribution for bank basis-point royalties.
+      Optional Phase 2 feature.
+  - name: "Phase 2 — Webhooks"
+    description: >-
+      Bank-to-user notification contracts. Implements notification
+      sovereignty — all blocked verification events delivered directly
+      to the authenticated user, never to the Finance App.
+      Optional Phase 2 feature.
