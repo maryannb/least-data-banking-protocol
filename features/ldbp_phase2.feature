@@ -10,7 +10,7 @@
 #   POST /webhooks/verification.blocked
 #
 # Conformance reference: LDBP Conformance Definition v1.0 (C-08)
-# API Spec reference:    ldbp_api_v1.yaml
+# API Spec reference:    ldbp_api.yaml
 # Author:                Mary Ann Belarmino — BelarminoAdvisory.com
 # License:               CC BY 4.0
 # =============================================================================
