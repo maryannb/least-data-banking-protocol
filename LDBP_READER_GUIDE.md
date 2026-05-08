@@ -9,7 +9,7 @@
 
 ## Overview
 
-This repository contains the complete LDBP dossier — a set of five coordinated artifacts that together define, specify, govern, and document the Least Data Banking Protocol. Each artifact serves a distinct audience and purpose. This guide tells you which document to read first based on who you are and what you need.
+This repository contains the complete LDBP dossier — a set of coordinated artifacts that together define, specify, govern, and document the Least Data Banking Protocol. Each artifact serves a distinct audience and purpose. This guide tells you which document to read first based on who you are and what you need.
 
 ---
 
@@ -125,7 +125,7 @@ This repository contains the complete LDBP dossier — a set of five coordinated
 - Implementation-defined behaviors that do not affect conformance status
 - Versioning and amendment rules — including a permanent constraint that no future version may weaken the five Least-Data Principles
 
-**Two formats:** The `.md` file is the canonical living reference in this repository. The `.docx` file is the formal distribution artifact for regulatory submissions and vendor contracts. Both contain identical content.
+**Two formats:** The `.md` file is the canonical living reference in this repository. The `.docx` file (`LDBP_Conformance.docx`) is the formal distribution artifact for regulatory submissions and vendor contracts. Both contain identical content.
 
 **What it does not cover:** Implementation guidance (see PRD) or API schemas (see API Spec).
 
@@ -139,7 +139,25 @@ This repository contains the complete LDBP dossier — a set of five coordinated
 - New to LDBP and unsure where to start
 - Sharing the dossier with colleagues and want to orient them quickly
 
-**Two formats:** The `.md` file lives in the GitHub repository root. The `.docx` file is for formal distribution. Both contain identical content.
+**Two formats:** The `.md` file lives in the GitHub repository root. The `.docx` file (`LDBP_Reader_Guide.docx`) is for formal distribution. Both contain identical content.
+
+---
+
+## Supporting Files
+
+The repository also contains the following supporting artifacts. These do not require reading in sequence but are available for specific use cases.
+
+| File | Location | Purpose |
+|---|---|---|
+| `CONTRIBUTING.md` | Root | How to submit amendment proposals, implementation reports, and specification bugs |
+| `COMMERCIAL_LICENSING.md` | Root | Licensing terms, attribution requirements, and commercial inquiry contact |
+| `LICENSE` | Root | CC BY 4.0 license text |
+| `index.html` | `/docs` | ReDoc-rendered interactive API documentation page — open in a browser for a formatted view of the API spec |
+| `ldbp_compliance_checklist.md` | `/specs` | Regulatory mapping table and compliance checklist for CFPB 1033, GDPR, PSD3, Regulation E, and EU AI Act |
+| `ldbp_sequence_diagrams.md` | `/specs` | Mermaid sequence diagrams for four key protocol flows: standard payment, fraud flag, Kill Switch revocation, and agentic batch payment |
+| `ldbp_phase1.feature` | `/features` | Phase 1 Gherkin acceptance criteria — 26 scenarios covering account isolation, Boolean verification, atomic execution, rate limiting, notification sovereignty, and Kill Switch |
+| `ldbp_phase2.feature` | `/features` | Phase 2 Gherkin acceptance criteria — 26 scenarios covering Virtual Allowances, batch verification, batch execution, billing metering, and webhooks |
+| `ldbp_optional.feature` | `/features` | Security, Principle Drift detection, and agentic scenarios — 29 scenarios covering binary search attacks, timing side-channels, multi-agent delegation, and the full Principle Drift taxonomy |
 
 ---
 
