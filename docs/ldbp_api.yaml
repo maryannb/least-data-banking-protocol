@@ -3,7 +3,7 @@ openapi: 3.0.3
 info:
   title: Least Data Banking Protocol (LDBP) - Enterprise Suite
   version: 1.0.0
-  description: >-
+  description: |-
     A Privacy-by-Design framework for Intent-Based Banking.
     Replaces raw data extraction with Boolean verification (the "is_enough" check).
 
@@ -421,7 +421,7 @@ paths:
     post:
       tags: [Phase 1 — Identity]
       summary: "Kill Switch — Revoke Scoped Account Token"
-      description: >-
+      description: |-
         Instantly invalidates a scoped_account_token, terminating the
         Finance App's access to the user's account immediately.
 
@@ -503,7 +503,7 @@ paths:
     post:
       tags: [Phase 1 — Verification]
       summary: "Composite Boolean Verification (the 'is_enough' check)"
-      description: >-
+      description: |-
         The core LDBP endpoint. Performs balance verification AND fraud
         evaluation as a single atomic operation within the bank's Policy
         Enforcement Point (PEP).
@@ -663,7 +663,7 @@ paths:
     post:
       tags: [Phase 1 — Execution]
       summary: "Consolidated Verify-and-Execute — the 'charge' pattern"
-      description: >-
+      description: |-
         Performs balance verification, fraud evaluation, and fund deduction
         as a single atomic PEP operation in one API call. Equivalent to
         POST /balance/verify followed by a human authorization step and then
@@ -1334,7 +1334,7 @@ paths:
     get:
       tags: [Phase 2 — Monetization]
       summary: "Real-time Fee Attribution"
-      description: >-
+      description: |-
         Returns the current accrued verification and execution fees
         for the identified Finance App in the current billing period.
 
@@ -1424,7 +1424,7 @@ paths:
     post:
       tags: [Phase 2 — Webhooks]
       summary: "Fraud Block / Blocked Verification Notification (Bank → User)"
-      description: >-
+      description: |-
         Webhook delivered by the bank directly to the authenticated user
         when a /balance/verify request returns False due to any internal
         block condition (fraud flag, rate limit, revoked token, cap exceeded).
