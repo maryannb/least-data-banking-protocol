@@ -15,7 +15,7 @@ This repository contains the complete LDBP dossier — a set of five coordinated
 
 ## The Five Artifacts
 
-### 1. Whitepaper — `LDBP_Whitepaper_v1.docx`
+### 1. Whitepaper — `LDBP_Whitepaper.pdf`
 
 **What it is:** The foundational concept document. Explains the problem (all-access banking data extraction), the principle (Boolean verification over data extraction), and the rationale for LDBP's architecture. Written for a mixed audience — executives, product leaders, regulators, and technically curious non-engineers.
 
@@ -39,7 +39,7 @@ This repository contains the complete LDBP dossier — a set of five coordinated
 
 ---
 
-### 2. API Specification — `ldbp_api_v1.yaml`
+### 2. API Specification — `ldbp_api.yaml`
 
 **What it is:** The machine-readable OpenAPI 3.0 specification defining every LDBP endpoint, request schema, response schema, error code, security scheme, and behavioral contract. This is the technical implementation reference.
 
@@ -74,7 +74,7 @@ This repository contains the complete LDBP dossier — a set of five coordinated
 
 ---
 
-### 3. Product Requirements Document — `LDBP_PRD_v1.docx`
+### 3. Product Requirements Document — `LDBP_PRD.docx`
 
 **What it is:** A FAANG-caliber PRD defining the complete product requirements for implementing LDBP — functional requirements, non-functional requirements, use cases, architecture, fraud detection design, regulatory mapping, and success metrics. Written for engineering teams, product managers, and technical program managers at implementing institutions.
 
@@ -106,7 +106,7 @@ This repository contains the complete LDBP dossier — a set of five coordinated
 
 ---
 
-### 4. Conformance Definition — `LDBP_CONFORMANCE.md` / `LDBP_Conformance_v1.docx`
+### 4. Conformance Definition — `LDBP_CONFORMANCE.md` / `LDBP_Conformance.docx`
 
 **What it is:** The authoritative governance document defining what it means to be LDBP-conformant. Any implementation, product, or service claiming LDBP conformance must satisfy every requirement in this document. In the event of conflict with any other LDBP artifact, this document governs.
 
@@ -131,7 +131,7 @@ This repository contains the complete LDBP dossier — a set of five coordinated
 
 ---
 
-### 5. Reader's Guide — `LDBP_READER_GUIDE.md` / `LDBP_Reader_Guide_v1.docx`
+### 5. Reader's Guide — `LDBP_READER_GUIDE.md` / `LDBP_Reader_Guide.docx`
 
 **What it is:** This document. A navigation guide to the LDBP dossier explaining what each artifact is, who it is for, what it covers, and what it does not cover. The starting point for any reader new to the dossier.
 
