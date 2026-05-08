@@ -61,8 +61,8 @@ info:
     name: Mary Ann Belarmino
     url: https://belarminoadvisory.com
   license:
-    name: Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International (CC BY-NC-ND 4.0)
-    url: https://creativecommons.org/licenses/by-nc-nd/4.0/
+    name: Creative Commons Attribution 4.0 International (CC BY 4.0)
+    url: https://creativecommons.org/licenses/by/4.0/
 
 # -----------------------------------------------------------------------
 # SECURITY
@@ -136,8 +136,9 @@ components:
       required: true
       description: >-
         Identifies the Finance App for basis-point fee attribution.
-        Used by /billing/metering to calculate per-verification and
-        per-execution royalties owed to the bank.
+        Used by /billing/metering to calculate per-execution royalties
+        owed to the bank. Verification call metering is optional at
+        institution discretion.
       schema:
         type: string
         example: "client_stripe_prod_001"
@@ -537,9 +538,11 @@ paths:
         INTENT-ID INVALIDATION: A False response invalidates the Intent-ID.
         The Finance App MUST generate a new Intent-ID for any retry.
 
-        RATE LIMITING: This endpoint is rate-limited to 5 calls per hour
-        per scoped_account_token. Exceeding this limit returns 429 and
-        triggers a verification.blocked notification to the user.
+        RATE LIMITING: This endpoint is rate-limited per scoped_account_token
+        at a level sufficient to prevent binary search attacks on account
+        balances. The specific limit is institution-defined. Exceeding this
+        limit returns 429 and triggers a verification.blocked notification
+        to the user.
 
         NO RAW DATA: This endpoint MUST NOT return balance amounts,
         transaction history, account numbers, or any data beyond the
@@ -637,7 +640,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '429':
           description: >-
-            Rate limit exceeded (5 calls/hour per scoped token).
+            Rate limit exceeded (institution-defined limit per scoped token).
             A verification.blocked notification has been sent to the user.
           content:
             application/json:
@@ -1017,8 +1020,7 @@ paths:
                 intents:
                   type: array
                   minItems: 2
-                  maxItems: 100
-                  description: "Array of intents to verify. Each evaluated atomically and independently."
+                  description: "Array of intents to verify. Each evaluated atomically and independently. Maximum batch size is institution-defined."
                   items:
                     type: object
                     required:
@@ -1110,7 +1112,7 @@ paths:
                 format: date-time
               description: "ISO 8601 timestamp when the rate limit window resets."
         '400':
-          description: "Malformed request or batch size violation (min 2, max 100)."
+          description: "Malformed request or batch size violation (minimum 2 intents; maximum is institution-defined)."
           content:
             application/json:
               schema:
@@ -1209,11 +1211,10 @@ paths:
                 intents:
                   type: array
                   minItems: 2
-                  maxItems: 100
                   description: >-
                     Array of intents to atomically verify and execute.
                     Each intent is independently processed — partial
-                    success is valid.
+                    success is valid. Maximum batch size is institution-defined.
                   items:
                     type: object
                     required:
@@ -1297,7 +1298,7 @@ paths:
                     format: date-time
                     description: "ISO 8601 timestamp of batch processing completion."
         '400':
-          description: "Malformed request or batch size violation (min 2, max 100)."
+          description: "Malformed request or batch size violation (minimum 2 intents; maximum is institution-defined)."
           content:
             application/json:
               schema:
@@ -1344,9 +1345,12 @@ paths:
         into its accruing fee obligations.
 
         FEE STRUCTURE: Fee rates are institution-defined. LDBP specifies
-        the metering mechanism, not the rates. Typical structure:
-        - Per-verification fee (each /balance/verify call)
+        the metering mechanism, not the rates. Execution events are the
+        primary billable unit:
+        - Per-execution fee (each /transfer/charge call)
         - Batch charge fee (per /batch/transfer/charge call)
+        Verification call metering (/balance/verify, /batch/balance/verify)
+        is optional at institution discretion.
 
         DATA RETURNED: This endpoint returns fee attribution data only.
         No account balances, transaction amounts, or user financial
@@ -1385,7 +1389,7 @@ paths:
                     properties:
                       verification_calls:
                         type: integer
-                        description: "Total /balance/verify calls this period."
+                        description: "Total /balance/verify and /batch/balance/verify calls this period. Included for operational reporting. Whether these are billed is institution-defined."
                       batch_charge_calls:
                         type: integer
                         description: "Total /batch/transfer/charge calls this period."
@@ -1434,7 +1438,7 @@ paths:
         TRIGGER CONDITIONS: The bank MUST send this webhook when
         /balance/verify returns False due to:
         - Internal fraud flag triggered
-        - Rate limit exceeded (5 calls/hour)
+        - Rate limit exceeded (institution-defined limit)
         - Token revoked
         - Weekly/monthly cap exceeded (Phase 2)
         Note: False due to insufficient funds does NOT trigger this
