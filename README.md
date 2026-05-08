@@ -90,7 +90,7 @@ sequenceDiagram
 
 ## API Surface
 
-Full specification: [`ldbp_api_v1.yaml`](./ldbp_api_v1.yaml) — OpenAPI 3.0, validated
+Full specification: [`ldbp_api.yaml`](./ldbp_api.yaml) — OpenAPI 3.0, validated
 
 | Endpoint | Phase | Purpose |
 |---|---|---|
@@ -115,11 +115,11 @@ This repository is a complete Product Design Dossier. All artifacts are mutually
 
 | File | What It Is | Primary Audience |
 |---|---|---|
-| [`LDBP_Whitepaper_v1.docx`](./docs/LDBP_Whitepaper_v1.docx) | Foundational concept document — the problem, the principles, the rationale | Executives, regulators, product leaders, journalists |
-| [`ldbp_api_v1.yaml`](./ldbp_api_v1.yaml) | OpenAPI 3.0 specification — all endpoints, schemas, behavioral contracts | Bank architects, Finance App developers |
-| [`LDBP_PRD_v1.docx`](./docs/LDBP_PRD_v1.docx) | Product Requirements Document — functional requirements, use cases, architecture, regulatory mapping | Engineering teams, product managers, compliance officers |
+| [`LDBP_Whitepaper.docx`](./docs/LDBP_Whitepaper.docx) | Foundational concept document — the problem, the principles, the rationale | Executives, regulators, product leaders, journalists |
+| [`ldbp_api.yaml`](./ldbp_api.yaml) | OpenAPI 3.0 specification — all endpoints, schemas, behavioral contracts | Bank architects, Finance App developers |
+| [`LDBP_PRD.docx`](./docs/LDBP_PRD.docx) | Product Requirements Document — functional requirements, use cases, architecture, regulatory mapping | Engineering teams, product managers, compliance officers |
 | [`LDBP_CONFORMANCE.md`](./LDBP_CONFORMANCE.md) | Conformance Definition — what counts as LDBP, Principle Drift taxonomy, required attribution statement | Implementing institutions, legal and compliance teams, auditors |
-| [`LDBP_Conformance_v1.docx`](./docs/LDBP_Conformance_v1.docx) | Formal distribution version of the Conformance Definition | Regulatory submissions, vendor contracts |
+| [`LDBP_Conformance.docx`](./docs/LDBP_Conformance.docx) | Formal distribution version of the Conformance Definition | Regulatory submissions, vendor contracts |
 | [`LDBP_READER_GUIDE.md`](./LDBP_READER_GUIDE.md) | Navigation guide — what each artifact is and who should read it | All readers new to the dossier |
 
 **Not sure where to start?** Read the [`LDBP_READER_GUIDE.md`](./LDBP_READER_GUIDE.md).
