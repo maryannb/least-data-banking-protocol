@@ -6,7 +6,7 @@ reference for bank compliance officers, legal reviewers, and regulatory
 bodies evaluating LDBP for implementation or citation.
 
 For the full technical implementation of each item, see:
-- API Spec: `ldbp_api_v1.yaml`
+- API Spec: `ldbp_api.yaml`
 - PRD Section 10: Regulatory Compliance Mapping
 - Conformance Definition: `LDBP_CONFORMANCE.md`
 
@@ -16,7 +16,7 @@ For the full technical implementation of each item, see:
 
 | Regulation | Specific Requirement | LDBP Technical Implementation |
 |---|---|---|
-| **CFPB Section 1033** | Mandatory developer interface for authorized third parties | `ldbp_api_v1.yaml` — standardized OpenAPI 3.0 contract for all Finance Apps |
+| **CFPB Section 1033** | Mandatory developer interface for authorized third parties | `ldbp_api.yaml` — standardized OpenAPI 3.0 contract for all Finance Apps |
 | **CFPB Section 1033** | "Reasonably necessary" data only — no over-collection | `POST /balance/verify` — Boolean True/False replaces raw balance; over-collection is architecturally impossible |
 | **CFPB Section 1033** | Consumer revocation rights | `POST /auth/token/revoke` — instant cryptographic token invalidation; Kill Switch portal |
 | **CFPB Section 1033** | No secondary use of consumer financial data | Finance App never possesses raw data — cannot repurpose what it never received |
@@ -42,7 +42,7 @@ remains valid regardless of the rule's litigation status.*
 ### 1. CFPB Section 1033 — Personal Financial Data Rights
 
 - [ ] Developer interface implemented as a standardized OpenAPI 3.0 
-      contract (`ldbp_api_v1.yaml`)
+      contract (`ldbp_api.yaml`)
 - [ ] Boolean-only responses ensure data collection is limited to 
       what is reasonably necessary for each transaction
 - [ ] `POST /auth/token/revoke` immediately invalidates the 
