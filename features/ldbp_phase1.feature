@@ -9,7 +9,7 @@
 #   POST /transfer/charge
 #
 # Conformance reference: LDBP Conformance Definition v1.0 (C-01 through C-07)
-# API Spec reference:    ldbp_api_v1.yaml
+# API Spec reference:    ldbp_api.yaml
 # Author:                Mary Ann Belarmino — BelarminoAdvisory.com
 # License:               CC BY 4.0
 # =============================================================================
