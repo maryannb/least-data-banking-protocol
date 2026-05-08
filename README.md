@@ -90,7 +90,7 @@ sequenceDiagram
 
 ## API Surface
 
-Full specification: [`ldbp_api.yaml`](./ldbp_api.yaml) — OpenAPI 3.0, validated
+Full specification: [`ldbp_api.yaml`](./docs/ldbp_api.yaml) — OpenAPI 3.0, validated
 
 | Endpoint | Phase | Purpose |
 |---|---|---|
