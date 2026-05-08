@@ -1,62 +1,132 @@
-# LDBP Compliance Checklist
-## ⚖️ LDBP Regulatory Mapping Table
+# LDBP Regulatory Compliance Reference
 
-| Regulation | Specific Requirement | LDBP Implementation |
-| :--- | :--- | :--- |
-| **CFPB Section 1033** | **Mandatory Access:** Banks must provide a developer interface for third parties. | **`openapi.yaml`**: Provides a standardized, machine-readable contract for external apps. |
-| **CFPB Section 1033** | **Consumer Revocation:** Users must be able to instantly kill a data link. | **`DELETE /governance/revoke`**: A dedicated endpoint that invalidates all tokens and aliases. |
-| **GDPR / CCPA** | **Data Minimization:** Only "strictly necessary" data should be shared. | **`POST /balance/verify`**: Replaces raw balance sharing with a **Boolean (Yes/No)** signal. |
-| **GDPR** | **Right to be Forgotten:** Users can request deletion of their data traces. | **Alias ID System**: Deleting the alias mapping "anonymizes" the history without breaking the bank's core ledger. |
-| **FFIEC / GLBA** | **Safety & Soundness:** Transactions must be protected from "Double-Spend" or replay. | **`X-Idempotency-Key`**: Ensures that retried requests do not result in duplicate fund movements. |
-| **NIST CSF 2.0** | **Identity Governance:** Strong authentication for all "High-Value" transactions. | **mTLS + Scoped JWT**: Mutual TLS for the app and a time-limited, account-bound token for the user. |
-| **AI Act (EU/US)** | **Human-in-the-loop / Safety Rails**: High-risk AI must have deterministic boundaries. | **`GET /governance/permission-budget`**: A hard physical limit that an AI agent cannot bypass, regardless of its "reasoning." |
+This document maps LDBP's technical implementation to the specific 
+requirements of relevant US and EU regulations. It is intended as a 
+reference for bank compliance officers, legal reviewers, and regulatory 
+bodies evaluating LDBP for implementation or citation.
 
-## 📋 LDBP Compliance Checklist
+For the full technical implementation of each item, see:
+- API Spec: `ldbp_api_v1.yaml`
+- PRD Section 10: Regulatory Compliance Mapping
+- Conformance Definition: `LDBP_CONFORMANCE.md`
 
-**1. CFPB Section 1033 (Personal Financial Data Rights)**
+---
 
-This is the primary US regulation for Open Banking.
+## Regulatory Mapping Table
 
-[ ] Consumer-Directed Access: Does the API support the consumer's right to share data with a third party of their choice?
+| Regulation | Specific Requirement | LDBP Technical Implementation |
+|---|---|---|
+| **CFPB Section 1033** | Mandatory developer interface for authorized third parties | `ldbp_api_v1.yaml` — standardized OpenAPI 3.0 contract for all Finance Apps |
+| **CFPB Section 1033** | "Reasonably necessary" data only — no over-collection | `POST /balance/verify` — Boolean True/False replaces raw balance; over-collection is architecturally impossible |
+| **CFPB Section 1033** | Consumer revocation rights | `POST /auth/token/revoke` — instant cryptographic token invalidation; Kill Switch portal |
+| **CFPB Section 1033** | No secondary use of consumer financial data | Finance App never possesses raw data — cannot repurpose what it never received |
+| **GDPR Art. 5 — Data Minimization** | Only minimum necessary data collected for stated purpose | Boolean-only response; no transaction history, no raw balance, no account metadata transmitted to Finance App |
+| **GDPR Art. 5 — Purpose Limitation** | Data collected only for stated purpose; not used for secondary purposes | Finance App receives only a Boolean per transaction — no data exists at the app layer to repurpose |
+| **GDPR Art. 17 — Right to Erasure** | Users can request deletion of their data | Alias ID deletion severs the mapping between the Finance App and the user's account without touching the core ledger |
+| **GDPR Art. 7 — Consent** | Freely given, specific, informed, unambiguous consent | Account selector UI ensures user-selected scoping; `transfer:charge` scope requires explicit consent at token issuance |
+| **PSD3 / PSR (EU)** | Ban on screen scraping; dedicated secure APIs required | LDBP provides the dedicated secure API PSD3 mandates — Boolean verification exceeds PSD3's current raw-balance standard |
+| **FiDA (EU, pending)** | Transparent consent dashboards; one-click revocation | Kill Switch portal directly implements FiDA consent dashboard requirements |
+| **Regulation E (US)** | Consumer notification on electronic fund transfers | Real-time Consent Receipts on every transfer; `verification.blocked` webhooks on blocked events |
+| **GLBA — Safeguards Rule** | Protection of customer financial information | Raw DDA never transmitted; Alias ID system ensures a Finance App breach exposes no usable account data |
+| **NIST CSF 2.0** | Identity governance; strong authentication for high-value transactions | mTLS required for `/transfer/charge` and `/batch/transfer/charge`; ScopedAccountToken with cryptographic expiry |
+| **EU AI Act** | Deterministic boundaries for high-risk AI financial operations | `GET /governance/permission-budget` — hard Virtual Allowance cap an AI agent cannot bypass; Intent-ID bounds each operation to its declared purpose |
 
-[ ] No-Fee Access: Ensure the core data access required by law is provided without "junk fees" (while maintaining your premium verification fees separately).
+*Note: As of April 2026, CFPB Section 1033 is subject to ongoing 
+litigation and CFPB reconsideration. LDBP's technical approach 
+remains valid regardless of the rule's litigation status.*
 
-[ ] Standardized Format: Does the openapi.yaml follow recognized industry standards (e.g., FDX) for machine-readability?
+---
 
-[ ] Performance SLA: Does the API maintain at least a 99.5% response rate as required for developer interfaces?
+## Compliance Checklist
 
-[ ] Mandatory Revocation: Does the DELETE /governance/revoke endpoint immediately terminate access and notify the partner?
+### 1. CFPB Section 1033 — Personal Financial Data Rights
 
-**2. GDPR & Privacy (Data Minimization)**
+- [ ] Developer interface implemented as a standardized OpenAPI 3.0 
+      contract (`ldbp_api_v1.yaml`)
+- [ ] Boolean-only responses ensure data collection is limited to 
+      what is reasonably necessary for each transaction
+- [ ] `POST /auth/token/revoke` immediately invalidates the 
+      ScopedAccountToken and terminates Finance App access
+- [ ] Kill Switch portal lists all active Finance App connections 
+      by alias and allows single-action revocation
+- [ ] No secondary use of consumer financial data — Finance App 
+      never receives raw data to repurpose
+- [ ] CFPB 1033 litigation status noted; implementation does not 
+      depend on the rule's final status
 
-For users in the EU or under high-privacy mandates.
+### 2. GDPR and EU Privacy Regulations
 
-[ ] Purpose Limitation: Is the data collection limited to what is "reasonably necessary" for the specific intent (e.g., using a Boolean instead of a balance)?
+- [ ] `POST /balance/verify` returns only True/False — data 
+      collection is the technical minimum for the stated purpose
+- [ ] Finance App layer holds no raw financial data — Purpose 
+      Limitation is enforced architecturally, not by contract
+- [ ] Alias ID deletion severs Finance App mapping without 
+      touching core ledger — supports Right to Erasure
+- [ ] Account selector UI ensures user-directed, specific consent 
+      to one account at time of token issuance
+- [ ] `transfer:charge` scope requires explicit user consent at 
+      token issuance — not implied by `balance:verify`
+- [ ] `verification.blocked` webhook delivers fraud notifications 
+      bank → user directly, never through the Finance App
+- [ ] FiDA consent dashboard requirements met by Kill Switch portal 
+      *(FiDA pending — monitor trilogue negotiations)*
 
-[ ] Data Minimization: Are you successfully avoiding the collection of "Special Category" data (biometrics, race, etc.) unless explicitly required?
+### 3. PSD3 / PSR — EU Payment Services
 
-[ ] Right to Erasure: Does the system trigger a deletion of the Alias ID and all cached transaction metadata upon request?
+- [ ] No screen scraping fallback interfaces — all access via 
+      dedicated LDBP API
+- [ ] Boolean-only responses exceed PSD3's current raw-balance 
+      standard
+- [ ] mTLS enforced on all fund-movement endpoints
 
-[ ] Transparency: Are the X-Client-ID and X-Plan-ID headers used to log exactly who accessed which "Insight" and why?
+### 4. US Security and Safety — GLBA / Regulation E / NIST
 
-**3. FFIEC & Security (Information Security Standards)**
+- [ ] All endpoints enforced with TLS 1.3 minimum
+- [ ] mTLS enforced at gateway layer for `POST /transfer/charge` 
+      and `POST /batch/transfer/charge`
+- [ ] Raw DDA account number never transmitted to Finance App 
+      at any point — Alias ID used throughout
+- [ ] `X-Idempotency-Key` cached for set duration (e.g. 24 hours) 
+      — prevents double-charging on network retry
+- [ ] Real-time Consent Receipts sent to user after every 
+      successful transfer (Regulation E)
+- [ ] All PEP decisions logged with `request_id` for audit trail 
+      — minimum 2 years for transfer records per 
+      Regulation E (12 CFR 1005.13)
+- [ ] Encryption at rest for Alias ID → DDA mapping — 
+      method is institution-defined
 
-Based on the FDI Act Section 39 and GLBA requirements.
+### 5. Agentic and AI Governance — EU AI Act
 
-[ ] In-Transit Encryption: Are all endpoints enforced with TLS 1.3 and mTLS for partner handshakes?
+- [ ] Each AI agent operation scoped to a single Intent-ID that 
+      expires on use — no accumulated account state
+- [ ] `GET /governance/permission-budget` enforces hard Virtual 
+      Allowance cap that no agent can bypass regardless of 
+      reasoning (Phase 2)
+- [ ] `POST /batch/transfer/charge` provides atomic per-intent 
+      execution for agent queues — partial success valid
+- [ ] Rate limiting on `POST /balance/verify` prevents agent 
+      binary search attacks — institution-defined limit
+- [ ] `request_id` in all API responses provides audit trail 
+      for agent-initiated operations
+- [ ] ScopedAccountToken restricts agent to declared account — 
+      a compromised sub-agent cannot laterally access other accounts
 
-[ ] At-Rest Encryption: Is the mapping between the Alias ID and the DDA Number encrypted using AES-256 with hardware-backed keys (KMS)?
+---
 
-[ ] Multi-Factor Authentication (MFA): Is MFA required for the initial auth/token/exchange redirect flow?
+## Implementation-Defined Items
 
-[ ] Idempotency: Does the X-Idempotency-Key prevent the "Double-Spend" risk, ensuring safety and soundness of the ledger?
+The following are not mandated by LDBP but are recommended for 
+regulatory compliance at the institution level:
 
-**4. AI & Agentic Governance (The "Principal" Edge)**
+| Item | Recommendation | Regulatory Driver |
+|---|---|---|
+| Encryption at rest for Alias ID mapping | AES-256 with hardware-backed keys | GLBA Safeguards Rule |
+| MFA for `/auth/token/exchange` flow | Required for high-value account linking | NIST CSF 2.0 |
+| Rate limit value for `/balance/verify` | Institution-defined; sufficient to prevent binary search attacks | CFPB 1033 security requirements |
+| Virtual Allowance cap values | User-configured and institution-defined | EU AI Act; GDPR consent scope |
+| Fraud scoring model thresholds | Institution-defined | FFIEC guidance |
 
-Net-new standards for autonomous financial agents.
+---
 
-[ ] Deterministic Anchoring: Does the /balance/verify API provide a "Ground Truth" signal to prevent AI hallucinations?
-
-[ ] Permission Budgets: Is there a hard velocity cap (e.g., max 5 calls/min) to prevent AI "brute-forcing" of user data?
-
-[ ] Explainability: Does the CorrelationID allow for a clear audit trail of why an AI agent initiated a specific transfer?
+*© 2026 Mary Ann Belarmino. BelarminoAdvisory.com. CC BY 4.0.*
