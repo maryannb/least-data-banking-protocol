@@ -115,8 +115,8 @@ This repository is a complete Product Design Dossier. All artifacts are mutually
 
 | File | What It Is | Primary Audience |
 |---|---|---|
-| [`LDBP_Whitepaper.docx`](./docs/LDBP_Whitepaper.docx) | Foundational concept document — the problem, the principles, the rationale | Executives, regulators, product leaders, journalists |
-| [`ldbp_api.yaml`](./ldbp_api.yaml) | OpenAPI 3.0 specification — all endpoints, schemas, behavioral contracts | Bank architects, Finance App developers |
+| [`LDBP_Whitepaper.pdf`](./docs/LDBP_Whitepaper.pdf) | Foundational concept document — the problem, the principles, the rationale | Executives, regulators, product leaders, journalists |
+| [`ldbp_api.yaml`](./docs/ldbp_api.yaml) | OpenAPI 3.0 specification — all endpoints, schemas, behavioral contracts | Bank architects, Finance App developers |
 | [`LDBP_PRD.docx`](./docs/LDBP_PRD.docx) | Product Requirements Document — functional requirements, use cases, architecture, regulatory mapping | Engineering teams, product managers, compliance officers |
 | [`LDBP_CONFORMANCE.md`](./LDBP_CONFORMANCE.md) | Conformance Definition — what counts as LDBP, Principle Drift taxonomy, required attribution statement | Implementing institutions, legal and compliance teams, auditors |
 | [`LDBP_Conformance.docx`](./docs/LDBP_Conformance.docx) | Formal distribution version of the Conformance Definition | Regulatory submissions, vendor contracts |
@@ -128,7 +128,7 @@ This repository is a complete Product Design Dossier. All artifacts are mutually
 
 ## Conformance
 
-Any implementation claiming LDBP conformance must satisfy every requirement in the [LDBP Conformance Definition v1.0](./LDBP_CONFORMANCE.md).
+Any implementation claiming LDBP conformance must satisfy every requirement in the [LDBP Conformance Definition](./LDBP_CONFORMANCE.md).
 
 Any modification that violates the five Least-Data Principles constitutes **Principle Drift** and may not be represented as LDBP, regardless of naming, marketing, or partial compliance.
 
@@ -136,7 +136,7 @@ LDBP is app-agnostic by design. The conformance standard applies to bank impleme
 
 When claiming conformance, the implementing institution must include the following attribution in all relevant documentation, API specifications, developer portals, and regulatory filings:
 
-> *"This implementation conforms to the Least Data Banking Protocol (LDBP) as defined by Mary Ann Belarmino (BelarminoAdvisory.com). LDBP Conformance Definition v1.0. Licensed under CC BY 4.0."*
+> *"This implementation conforms to the Least Data Banking Protocol (LDBP) as defined by Mary Ann Belarmino (BelarminoAdvisory.com). LDBP Conformance Definition. Licensed under CC BY 4.0."*
 
 ---
 
